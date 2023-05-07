@@ -1,13 +1,11 @@
 package actions;
 
 import java.io.IOException;
-import java.time.LocalDate;
 import java.util.List;
 
 import javax.servlet.ServletException;
 
 import actions.views.EmployeeView;
-import actions.views.ReportView;
 import constants.AttributeConst;
 import constants.ForwardConst;
 import constants.JpaConst;
@@ -45,42 +43,34 @@ public class EmployeeAction extends ActionBase {
     public void create() throws ServletException, IOException {
 
         //CSRF対策 tokenのチェック
-        if (checkToken()) {
+        if (checkAdmin() && checkToken()) { //追記
 
-            //日報の日付が入力されていなければ、今日の日付を設定
-            LocalDate day = null;
-            if (getRequestParam(AttributeConst.REP_DATE) == null
-                    || getRequestParam(AttributeConst.REP_DATE).equals("")) {
-                day = LocalDate.now();
-            } else {
-                day = LocalDate.parse(getRequestParam(AttributeConst.REP_DATE));
-            }
-
-            //セッションからログイン中の従業員情報を取得
-            EmployeeView ev = (EmployeeView) getSessionScope(AttributeConst.LOGIN_EMP);
-
-            //パラメータの値をもとに日報情報のインスタンスを作成する
-            ReportView rv = new ReportView(
+            //パラメータの値を元に従業員情報のインスタンスを作成する
+            EmployeeView ev = new EmployeeView(
                     null,
-                    ev, //ログインしている従業員を、日報作成者として登録する
-                    day,
-                    getRequestParam(AttributeConst.REP_TITLE),
-                    getRequestParam(AttributeConst.REP_CONTENT),
+                    getRequestParam(AttributeConst.EMP_CODE),
+                    getRequestParam(AttributeConst.EMP_NAME),
+                    getRequestParam(AttributeConst.EMP_PASS),
+                    toNumber(getRequestParam(AttributeConst.EMP_ADMIN_FLG)),
                     null,
-                    null);
+                    null,
+                    AttributeConst.DEL_FLAG_FALSE.getIntegerValue());
 
-            //日報情報登録
-            List<String> errors = service.create(rv);
+            //アプリケーションスコープからpepper文字列を取得
+            String pepper = getContextScope(PropertyConst.PEPPER);
+
+            //従業員情報登録
+            List<String> errors = service.create(ev, pepper);
 
             if (errors.size() > 0) {
                 //登録中にエラーがあった場合
 
                 putRequestScope(AttributeConst.TOKEN, getTokenId()); //CSRF対策用トークン
-                putRequestScope(AttributeConst.REPORT, rv);//入力された日報情報
-                putRequestScope(AttributeConst.ERR, errors);//エラーのリスト
+                putRequestScope(AttributeConst.EMPLOYEE, ev); //入力された従業員情報
+                putRequestScope(AttributeConst.ERR, errors); //エラーのリスト
 
                 //新規登録画面を再表示
-                forward(ForwardConst.FW_REP_NEW);
+                forward(ForwardConst.FW_EMP_NEW);
 
             } else {
                 //登録中にエラーがなかった場合
@@ -89,8 +79,9 @@ public class EmployeeAction extends ActionBase {
                 putSessionScope(AttributeConst.FLUSH, MessageConst.I_REGISTERED.getMessage());
 
                 //一覧画面にリダイレクト
-                redirect(ForwardConst.ACT_REP, ForwardConst.CMD_INDEX);
+                redirect(ForwardConst.ACT_EMP, ForwardConst.CMD_INDEX);
             }
+
         }
     }
 
