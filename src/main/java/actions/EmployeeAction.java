@@ -1,11 +1,13 @@
 package actions;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 
 import javax.servlet.ServletException;
 
 import actions.views.EmployeeView;
+import actions.views.ReportView;
 import constants.AttributeConst;
 import constants.ForwardConst;
 import constants.JpaConst;
@@ -36,7 +38,7 @@ public class EmployeeAction extends ActionBase {
     }
 
     /**
-     * 新規登録画面を表示する
+     * 新規登録を行う
      * @throws ServletException
      * @throws IOException
      */
@@ -45,32 +47,40 @@ public class EmployeeAction extends ActionBase {
         //CSRF対策 tokenのチェック
         if (checkToken()) {
 
-            //パラメータの値を元に従業員情報のインスタンスを作成する
-            EmployeeView ev = new EmployeeView(
-                    null,
-                    getRequestParam(AttributeConst.EMP_CODE),
-                    getRequestParam(AttributeConst.EMP_NAME),
-                    getRequestParam(AttributeConst.EMP_PASS),
-                    toNumber(getRequestParam(AttributeConst.EMP_ADMIN_FLG)),
-                    null,
-                    null,
-                    AttributeConst.DEL_FLAG_FALSE.getIntegerValue());
+            //日報の日付が入力されていなければ、今日の日付を設定
+            LocalDate day = null;
+            if (getRequestParam(AttributeConst.REP_DATE) == null
+                    || getRequestParam(AttributeConst.REP_DATE).equals("")) {
+                day = LocalDate.now();
+            } else {
+                day = LocalDate.parse(getRequestParam(AttributeConst.REP_DATE));
+            }
 
-            //アプリケーションスコープからpepper文字列を取得
-            String pepper = getContextScope(PropertyConst.PEPPER);
+            //セッションからログイン中の従業員情報を取得
+            EmployeeView ev = (EmployeeView) getSessionScope(AttributeConst.LOGIN_EMP);
 
-            //従業員情報登録
-            List<String> errors = service.create(ev, pepper);
+            //パラメータの値をもとに日報情報のインスタンスを作成する
+            ReportView rv = new ReportView(
+                    null,
+                    ev, //ログインしている従業員を、日報作成者として登録する
+                    day,
+                    getRequestParam(AttributeConst.REP_TITLE),
+                    getRequestParam(AttributeConst.REP_CONTENT),
+                    null,
+                    null);
+
+            //日報情報登録
+            List<String> errors = service.create(rv);
 
             if (errors.size() > 0) {
                 //登録中にエラーがあった場合
 
                 putRequestScope(AttributeConst.TOKEN, getTokenId()); //CSRF対策用トークン
-                putRequestScope(AttributeConst.EMPLOYEE, ev); //入力された従業員情報
-                putRequestScope(AttributeConst.ERR, errors); //エラーのリスト
+                putRequestScope(AttributeConst.REPORT, rv);//入力された日報情報
+                putRequestScope(AttributeConst.ERR, errors);//エラーのリスト
 
                 //新規登録画面を再表示
-                forward(ForwardConst.FW_EMP_NEW);
+                forward(ForwardConst.FW_REP_NEW);
 
             } else {
                 //登録中にエラーがなかった場合
@@ -79,11 +89,13 @@ public class EmployeeAction extends ActionBase {
                 putSessionScope(AttributeConst.FLUSH, MessageConst.I_REGISTERED.getMessage());
 
                 //一覧画面にリダイレクト
-                redirect(ForwardConst.ACT_EMP, ForwardConst.CMD_INDEX);
+                redirect(ForwardConst.ACT_REP, ForwardConst.CMD_INDEX);
             }
-
         }
     }
+
+
+
 
 
 
@@ -142,6 +154,7 @@ public class EmployeeAction extends ActionBase {
         //詳細画面を表示
         forward(ForwardConst.FW_EMP_SHOW);
     }
+
 
     /**
      * 編集画面を表示する
