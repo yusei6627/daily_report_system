@@ -53,7 +53,6 @@ public class ReportAction extends ActionBase {
         forward(ForwardConst.FW_REP_NEW);
 
     }
-
     /**
      * 新規登録を行う
      * @throws ServletException
